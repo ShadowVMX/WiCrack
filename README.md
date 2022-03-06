@@ -1,6 +1,5 @@
 # WiCrack
-
-/home/shadowpriestvkz/Desktop/3298420.jpg
+https://github.com/ShadowVMX/WiCrack/blob/main/3298420.jpg
 
 
 # INFORMACIÓN #

@@ -1,5 +1,7 @@
 # WiCrack
 
+/home/shadowpriestvkz/Desktop/3298420.jpg
+
 
 # INFORMACIÓN #
 

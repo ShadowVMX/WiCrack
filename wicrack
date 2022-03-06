@@ -1,0 +1,17 @@
+#!/bin/bash
+
+fortune | cowsay -f dragon Cuidado a quien vas a quemar, usa la herramienta bien o serás tú el que acabará quemado.  Wicrack - Made By ShadowVMX| toilet --metal -f term
+echo " "
+echo " "
+
+echo "$(tput setaf 6)1. CLI [Terminal] --> wicrack -c"
+echo "2. GUI [Gráfico] --> wirack -g"
+echo " "
+
+case $1 in 
+	("-c") ./wicrack-cli
+	;;
+
+	("-g")./wicrack-gui
+	;;
+esac

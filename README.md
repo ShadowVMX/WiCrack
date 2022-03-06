@@ -15,6 +15,8 @@ Está recien desarrollada y ha sido testada solamente en 1 máquina Debian, conc
 
 # INSTALACIÓN #
 
+Dale solo permisos de ejecución al setup.sh, el se encargará del resto.
+
 Para llevar a cabo la ejecución óptima de wicrack necesitarás, antes de nada, ejecutar el setup.sh a través del binario y/o intérprete.
 
 

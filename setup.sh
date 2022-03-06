@@ -34,7 +34,7 @@ ls -l /usr/sbin/mdk3 &> /dev/null
 
 if [[ $? = 0 ]] ; then
 
-	echo "[*]mkd3 --> OK"
+	echo "[*]mdk3 --> OK"
 else
 	apt install mdk3 -y
 fi
@@ -46,7 +46,7 @@ ls -l /usr/sbin/mdk4 &> /dev/null
 
 if [[ $? = 0 ]] ; then
 
-        echo "[*]mkd4 --> OK"
+        echo "[*]mdk4 --> OK"
 else
         apt install mdk4 -y
 fi

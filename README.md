@@ -1,6 +1,6 @@
 # WiCrack
 
-![alt text](http://url/to/img.png)
+![alt text](http://url/to/3298420.jpg)
 
 
 # INFORMACIÓN #

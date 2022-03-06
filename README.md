@@ -1,5 +1,6 @@
 # WiCrack
-https://github.com/ShadowVMX/WiCrack/blob/main/3298420.jpg
+
+![alt text](http://url/to/img.png)
 
 
 # INFORMACIÓN #

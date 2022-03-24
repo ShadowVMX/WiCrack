@@ -121,7 +121,7 @@ fi
 sleep 2
 #Verificamos si están los banners.
 
-ls -l /usr/bin/toilet &> /dev/null
+ls -l /usr/games/fortune &> /dev/null
 
 if [[ $? = "0" ]] ; then
         echo "[*]Fortune --> OK"
@@ -132,7 +132,7 @@ fi
 sleep 2
 #Verificamos si están los banners.
 
-ls -l /usr/bin/toilet &> /dev/null
+ls -l /usr/games/cowsay &> /dev/null
 
 if [[ $? = "0" ]] ; then
         echo "[*]Cowsay --> OK"
